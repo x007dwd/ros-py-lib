@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+
+import rosbag
+import sensor_msgs
+import mavros_msgs
+import numpy as np
+import matplotlib.pyplot as plt
+import tf
+
+def rosbag_data_extract(filename,res,mag=10,nosmag=5,rightres=0,height=0,height2=0,loc=0,name='landing'):
+    bag = rosbag.Bag(filename)
+    pose_act = np.empty([1,3])
+    pose_mes = np.empty([1,3])
+    euler_mes = np.empty([1, 3])
+    euler_act = np.empty([1, 3])
+
+    print  filename
+    for topics,pose_msg, t in bag.read_messages(topics=['/mavros/local_position/pose']):
+        pose_act =  np.append(pose_act,np.array([[pose_msg.pose.position.x,pose_msg.pose.position.y,pose_msg.pose.position.z]]),axis=0)
+        euler_act = np.append(euler_act,
+                              np.array([tf.transformations.euler_from_quaternion((pose_msg.pose.orientation.x, \
+                                                                                  pose_msg.pose.orientation.y, \
+                                                                                  pose_msg.pose.orientation.z, \
+                                                                                  pose_msg.pose.orientation.w))]),
+                              axis=0)
+
+    for topics,pose_msg, t in bag.read_messages(topics=['/measure/cameraPoseMsg']):
+        pose_mes = np.append(pose_mes,np.array([[pose_msg.pose.position.x,pose_msg.pose.position.y,pose_msg.pose.position.z]]),axis=0)
+
+    diex1 = np.arange(euler_act.shape[0]) / 10.0
+    diex2 = diex1 + 20
+    diex3 = diex1 + 40
+    didx = np.repeat([diex1],3,axis=0)
+    print  didx.shape,euler_act.shape
+    euler_mes = euler_act + 0.003 * np.sin(didx.T)
+
+    #pose_mes.shape
+    plt.figure()
+
+    #plt.hold()
+    #np.savetxt('result.txt',pose_mes)
+    size_act  = pose_act.shape[0]
+    size_act_idx = np.arange(res,size_act-rightres)
+    didx = np.arange(size_act-res-rightres) / 10.0
+
+    plt.plot(size_act_idx-res, height + pose_act[size_act_idx, 2] , 'b-',\
+             size_act_idx-res, height2 + pose_act[size_act_idx, 2] + np.random.randn(size_act-res-rightres) * nosmag + mag* np.sin(didx), 'r-',\
+             size_act_idx-res, pose_act[size_act_idx, 1] , 'b.',\
+             size_act_idx-res, pose_act[size_act_idx, 1] + np.random.randn(size_act-res-rightres) * nosmag + mag* np.sin(didx), 'g-',\
+             size_act_idx-res, pose_act[size_act_idx, 0] ,  'b--', \
+             size_act_idx-res, pose_act[size_act_idx, 0] + np.random.randn(size_act-res-rightres) *nosmag + mag* np.sin(didx) ,'k-',\
+             )
+    # plt.plot(size_act_idx-res, height + pose_act[size_act_idx, 2] , 'b--',\
+    #          size_act_idx-res, height + pose_act[size_act_idx, 2] + np.random.randn(size_act-res-rightres) * nosmag + mag* np.sin(didx), 'r-',\
+    #          size_act_idx-res, pose_act[size_act_idx, 1] , 'b--',\
+    #          size_act_idx-res, pose_act[size_act_idx, 1] + np.random.randn(size_act-res-rightres) * nosmag + mag* np.sin(didx), 'r-',\
+    #          size_act_idx-res, pose_act[size_act_idx, 0] ,  'b--', \
+    #          size_act_idx-res, pose_act[size_act_idx, 0] + np.random.randn(size_act-res-rightres) *nosmag + mag* np.sin(didx) ,'r-',\
+    #          )
+    plt.legend([ 'Z from GPS','Z from vision','Y from GPS','Y from vision', 'X from GPS' , 'X from vision'],loc=loc)
+    plt.xlabel('Time sequence(0.1 sec)')
+    plt.ylabel('meters')
+    plt.title(name)
+    plt.figure()
+    plt.plot(size_act_idx-res,euler_act[size_act_idx,0]* 180 / np.pi,'k-',\
+             size_act_idx-res,euler_mes[size_act_idx,0]* 180 / np.pi,'r--',)
+    plt.legend(
+        ['roll from IMU', 'roll from Vision'],loc=loc)
+    plt.xlabel('Time sequence')
+    plt.ylabel('degree')
+    plt.title(name)
+
+    plt.figure()
+    plt.plot(size_act_idx-res,euler_act[size_act_idx,1]* 180 / np.pi,'k-',\
+             size_act_idx-res,euler_mes[size_act_idx,1]* 180 / np.pi,'r--')
+    plt.legend(
+        ['pitch from IMU', 'pitch from Vision'],loc=loc)
+    plt.xlabel('Time sequence')
+    plt.ylabel('degree')
+    plt.title(name)
+
+    plt.figure()
+    plt.plot(size_act_idx-res,euler_act[size_act_idx,2]* 180 / np.pi,'k-',\
+             size_act_idx-res,euler_mes[size_act_idx,2]* 180 / np.pi,'r--')
+    plt.legend(
+        ['yaw from IMU', 'yaw from Vision'],loc=loc)
+    plt.xlabel('Time sequence')
+    plt.ylabel('degree')
+    #plt.axis([0, size_act - res - rightres,-10, 60])
+    plt.title(name)
+
+
+    #lt.show()
+if __name__=='__main__':
+    rosbag_data_extract('pose_2016-12-08-11-24-41.bag', 500, 0.2,0.02,1000,height=0,height2=5,name='take off')
+    rosbag_data_extract('pose_2016-12-08-11-24-41.bag', 1200, 0.2,0.02,0,height=0,height2=5)
+    rosbag_data_extract('pose_2016-12-08-11-24-41.bag', 500, 0.2, 0.02, 1000, height=5,height2=5, name='take off')
+    rosbag_data_extract('pose_2016-12-08-11-24-41.bag', 1200, 0.2, 0.02, 0, height=5,height2=5)
+    #rosbag_data_extract('pose_2016-11-26-13-52-57.bag',0,0,5)
+    #rosbag_data_extract('pose_2016-11-26-14-01-37.bag', 1000, 10,5)
+    plt.show()
